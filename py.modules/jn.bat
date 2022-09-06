@@ -1,0 +1,1 @@
+start "" "%~dp0_jn.bat" %*

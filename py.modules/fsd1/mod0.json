@@ -1,0 +1,31 @@
+{
+	"default_params": {
+		"m": 0.28,
+		"gamma": 1,
+		"eta": 2e10,
+		"eta_p": 0,
+		"kappa": 1,
+		"K_s": 3.9e10,
+		"K_f": 5.7e10,
+		"K_m": 8.5e9,
+		"rho_s": 2650,
+		"rho_f": 700
+	},
+	"main_region": {
+		"name": "main",
+		"params": {
+			"m": 0.28,
+                        "rho_f":0.7e3,
+			"eta_p":0.8e-3,
+			"eta":0.2e-4
+		},
+		"polygon": {
+			"zb": 0,
+			"ze": 4000
+		}
+	},
+
+	"xregions": [
+
+	]
+}

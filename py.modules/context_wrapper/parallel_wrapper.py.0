@@ -1,0 +1,130 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Dec 05 05:11:11 2016
+
+@author: dich
+"""
+
+from ctypes import *
+import os
+import numpy as np
+
+# low level
+
+long_pvoid_int64_pvoid_p=CFUNCTYPE(c_long,c_void_p,c_longlong,c_void_p);
+long_pvoid_p=CFUNCTYPE(c_long,c_void_p);
+
+
+class context_list_t(Structure):
+    pass
+    '''
+    _pack_=8
+    _fields_ = [
+       ("context_pp",void_p),
+       ("count",c_longlong),
+       ("rep",c_longlong)
+       ]
+     '''
+p_context_list_t  = POINTER(context_list_t)
+pp_context_list_t  = POINTER(p_context_list_t)
+
+class invoke_proc_u_t(Union):
+    _pack_=8
+    _fields_ = [
+       ("pinvoke",long_pvoid_int64_pvoid_p),
+       ("pinvoke0",long_pvoid_p)
+       ]
+
+class cmd_u_t(Union):
+    _pack_=8
+    _fields_ = [
+       ("ccmd",c_char*8),
+       ("wcmd",c_wchar*4),
+       ("icmd",c_longlong),
+       ("pcmd",c_void_p),
+       ]
+       
+       
+class params_u_t(Union):
+    _pack_=8
+    _fields_ = [
+       ("params",c_void_p),       
+       ("iparams",c_longlong),
+       ("pclist",p_context_list_t),
+       ]
+ 
+    
+class base_context_t(Structure):
+    _anonymous_ = ("u")
+    _pack_=8
+    _fields_ = [
+    ("weak_ref_handle",c_void_p),
+    ("u",invoke_proc_u_t),  
+    ("context",c_void_p)  
+    ];
+
+p_base_context_t  = POINTER(base_context_t)
+pp_base_context_t  = POINTER(p_base_context_t)
+
+
+class invoke_context_t(base_context_t):
+    _anonymous_ = ("uc","up")
+    _pack_=8
+    _fields_ =[
+    ("uc",cmd_u_t),
+    ("up",params_u_t),
+    ]
+
+p_invoke_context_t  = POINTER(invoke_context_t)
+pp_invoke_context_t  = POINTER(p_invoke_context_t)
+
+
+context_list_t._pack_=8
+context_list_t._fields_=[
+("pp",pp_invoke_context_t),
+("count",c_longlong),
+("rep",c_longlong)
+]
+
+
+
+
+def get_lib():
+    #p=os.environ['parallel_wrapper'];
+    p="V:/Projects/tbb_wrapper/x64/Debug/tbb_wrapper.dll"
+    p="V:/Projects/tbb_wrapper/x64/Release/tbb_wrapper.dll"
+    try:
+        cdll.LoadLibrary(p+'/../tbb.dll');
+    except Exception:
+        pass
+    return cdll.LoadLibrary(p);
+    
+pwl=get_lib();
+
+_create_lin_comb=pwl.create_lin_comb;
+_create_lin_comb.rstype=c_int32
+_create_lin_comb.argtypes = (pp_base_context_t,)
+
+
+_create_invoke_context=pwl.create_invoke_context;
+_create_invoke_context.rstype=c_int32
+_create_invoke_context.argtypes = (p_base_context_t,pp_invoke_context_t)
+    
+_create_invoke_context_batch=pwl.create_invoke_context_batch;
+_create_invoke_context_batch.rstype=c_int32
+_create_invoke_context_batch.argtypes = (c_int32,pp_invoke_context_t,c_int32,c_int32,pp_invoke_context_t)
+
+
+_invoke_context=pwl.invoke_context;
+_invoke_context.rstype=c_int32
+_invoke_context.argtypes = (p_base_context_t,)
+
+
+_invoke_context_batch=pwl.invoke_context_batch;
+_invoke_context_batch.rstype=c_int32
+_invoke_context_batch.argtypes = (c_int32,p_base_context_t,c_int32)
+
+
+_release_context=pwl.release_context;
+_release_context.rstype=c_int32
+_release_context.argtypes = (c_void_p,)

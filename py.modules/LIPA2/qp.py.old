@@ -1,0 +1,104 @@
+#
+import numpy as np
+from scipy.linalg import expm
+import LIPA2.tools as ts
+
+
+def set_class_params(self,lcs):
+    self.__dict__.update(lcs)
+    del self.self;
+    return self
+
+def list2array(L,dtype=np.complex128):
+    if type(L) in (tuple,list):
+        ls= [len(v) for v in L];        
+        nL=np.zeros([len(L),np.max(ls)],dtype=dtype)
+        for n,d,l in zip(nL,L,ls):
+            n[:l]=d;
+        return nL
+    else:
+        return L
+    
+        
+        
+
+class qp_matrix_t(object):
+    def __init__(self,qp=None,g=None,dtype=np.complex128):  
+        
+        fqp= not qp is None
+        if fqp:
+            qp=list2array(qp,dtype=dtype);                  
+            
+        set_class_params(self,locals());
+    
+
+    def reset(self,t):        
+        if self.fqp:
+            qp,g=self.qp,self.g;    
+            Nt=expm(np.diag(t*np.ones([qp.shape[1]-1]),-1));                
+            G=np.eye(qp.shape[0]) if g is None else np.diag(np.exp(t*np.array(g)))
+            self.G,self.Nt=G,Nt;
+        
+    def __call__(self):       
+        
+        if self.fqp:
+            qp=self.G@self.qp@self.Nt
+            self.qp[:]=qp;        
+            return self.qp;
+        
+
+class qp_laplace_t(object):
+    
+    def __init__(self,z,qp=None,gs=None,dtype=np.complex128):     
+              
+        self.bz=bz=z**-1
+        self.bzn=np.array([bz]);
+        self.fqp=fqp= not ( qp is None);
+        
+        if not fqp:
+            return;
+        
+        if gs is None:
+            gs=np.zeros(qp.shape[1],dtype=dtype);
+            
+        #nz=len(gs)+1;   
+        nz=qp.shape[1];      
+        def getzz(x):
+            pp=np.empty(nz,dtype=dtype);
+            p=np.complex128(1.0)/x;
+            for k in range(nz):
+                pp[k]=p;
+                p*=p;
+            return pp
+        
+        self.qp=qp;
+        self.pzs=pzs=np.full_like(qp, fill_value=np.nan) 
+        
+        for pz,g in zip(pzs,gs):
+            pz[:]=getzz(z-g);
+        
+    def __call__(self,F):
+        
+        if self.fqp and np.isfinite(self.qp[0,0]):            
+            return F@np.sum(self.pzs*self.qp,1);
+        else:
+            return self.bz*F;
+        
+        
+      
+if __name__=='__main__':
+    from utils import *
+    #q=qp_matrix_t([[1],[1,0,0,1],[1]],[1,2,3])
+    q=qp_matrix_t([[0,1],[0,0,0,0,0,0,1],[0,0,0,1]],[0,2,3])
+    t=1;
+    q.reset(t);
+    
+    o=qp_laplace_t(10j,q.qp,q.g)
+    f=o([[11,11,1],[1,1,1],[1,1,1]])   
+    print(1/q.qp.real)
+    a=q();
+    print(1/q.qp.real)    
+            
+        
+        
+    

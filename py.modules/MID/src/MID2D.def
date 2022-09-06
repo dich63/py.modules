@@ -1,0 +1,7 @@
+LIBRARY	"MID2D"
+
+EXPORTS
+laplace_2D_to_matrix_trimesh
+vxs2D_prjtransform_in_index
+mesh2D_in_rect_index
+vxs2D_in_rect_index

@@ -1,0 +1,5 @@
+
+#import numpy as np
+from scipy.linalg import expm;
+#q=expm(np.diag(0.1*np.ones(4),1))
+expm([[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]])

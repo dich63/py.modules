@@ -1,0 +1,295 @@
+import json
+import sys
+import copy
+from gzip import zlib
+
+
+
+class local_marshal_classes:
+    def __init__(self):
+#        self.compress_mode={'mode':0,'level':6}
+#        self.compressor=zlib
+        self.ipc_marshal={'enabled':False,'marshal':None,'unmarshal':lambda data,flink :None,'cache':lambda:None}
+        self.marshalers={};
+        self.unmarshalers={};
+    
+        
+    def register(self,cls,jsonclass=None,marshaller=None,unmarshaller=None):
+        if jsonclass is None:
+            jsonclass=cls.__name__
+        self.marshalers[cls]=(jsonclass,marshaller)
+        self.unmarshalers[jsonclass]=(cls,unmarshaller)
+    
+
+class marshal_classes:
+    classes=local_marshal_classes()
+    compress_mode={'mode':0,'level':6}
+    compressor=zlib
+    
+    
+    _instance = None
+    @classmethod
+    def instance(cls):
+        if not cls._instance:
+            cls._instance = cls()
+        return cls._instance
+
+config=marshal_classes.instance()
+
+
+if sys.version_info.major==3:
+    xrange=range
+    unicode=str
+    long=int
+
+
+iter_types = [
+    dict,
+    list,
+    tuple
+]
+
+string_types = [
+    bytes,
+    unicode
+]
+
+numeric_types = [
+    int,
+    long,
+    float
+]
+
+value_types = [
+    bool,
+    type(None)
+]
+
+def ipc_mode(mode=None):
+    m=config.classes.ipc_marshal['enabled'];
+    if not mode is None:
+        config.classes.ipc_marshal['enabled']=bool(mode);        
+    return m;
+
+def ipc_cache_clear():
+    return config.classes.ipc_marshal['cache']();    
+
+def compress_mode(mode=-1,level=-1):
+    if mode>=0:
+        config.compress_mode['mode']=mode
+    if level>=0:
+        config.compress_mode['level']=level
+    return copy.copy(config.compress_mode);
+
+        
+
+def _encode(obj):
+    obj_type = type(obj)
+    
+    if obj_type==jsobject:
+        return _encode(obj.__dict__)
+    
+    if obj_type in numeric_types+string_types+value_types:
+        return obj
+    if obj_type in iter_types:
+        if obj_type in (list, tuple):
+            new_obj = []
+            for item in obj:
+                new_obj.append(_encode(item))
+            if obj_type is tuple:
+                new_obj = tuple(new_obj)
+            return new_obj
+        # It's a dict...
+        else:
+            new_obj = {}
+            for key, value in list(obj.items()):
+                new_obj[key] = _encode(value)
+            return new_obj
+    try:
+        (jsonclass,marshaller)=config.classes.marshalers[obj_type];
+    except Exception:
+        return obj
+    return marshaller(obj,jsonclass);
+    
+
+
+
+def _decode(obj):
+    if type(obj) in string_types+numeric_types+value_types:
+        return obj
+    if type(obj) is list:
+        return_list = []
+        for entry in obj:
+            return_list.append(_decode(entry))
+        return return_list
+    # Othewise, it's a dict type
+    if '__jsonclass__' not in list(obj.keys()):
+        return_dict = {}
+        for key, value in list(obj.items()):
+            new_value = _decode(value)
+            return_dict[key] = new_value
+        return return_dict
+    # It's a dict, and it's a __jsonclass__
+    p=obj['__jsonclass__']
+    (cls,unmarshaller)=config.classes.unmarshalers[p[0]];
+    return unmarshaller(p);
+
+class jsbase(object):
+    def _def(self,name,val=None):
+        return self.__dict__.get(str(name),val);
+
+class jsobject(jsbase):
+    def __init__(self, entries={}):
+        self.__dict__.update(get_dict(entries))
+        
+    #def __repr__(self):
+    #    return 'jso:'+repr(self.__dict__)
+    def __str__(self):
+        return 'jso:'+str(self.__dict__)
+
+            
+    def __getattribute__(self,attr):
+        if attr.startswith('__') or attr=='_def':                            
+            return super(jsobject,self).__getattribute__(attr)
+        else:
+            return self.__dict__.get(attr,None)
+    def __getitem__(self,name):        
+        return self.__getattribute__(str(name))
+    def __setitem__(self,name,value):        
+        return self.__setattr__(str(name),value)        
+    def __iter__(self):
+        #print('iter...')
+        return iter(self.__dict__)
+    
+    def __def(self,name,val):
+        return self.__dict__.get(str(name),val);
+
+
+
+def get_dict(o):
+    return o.__dict__ if type(o)==jsobject else o;
+    
+
+def ext_def(o,dfl={},fdeep=False):
+    dfl=copy.deepcopy(dfl);
+    if fdeep:
+        o=copy.deepcopy(o);
+    dfl.update(o)
+    return dfl;
+    
+    
+def as_dict(o):
+    if type(o) in (dict,):
+        return o;
+    return o.__dict__        
+    
+def to_dict(o):
+    d={};
+    d.update(as_dict(o))
+    return d
+    
+def to_obj(d):
+    return jsobject(d);
+
+def to_obj_r(o):
+    t=type(o)
+    if t is dict:  
+        o=jsobject(o)         
+        for k in o:
+            o[k]=to_obj_r(o[k]);
+            
+    elif t in (list,tuple):  
+        l=len(o);
+        for k in range(l):
+            o[k]=to_obj_r(o[k]);
+        
+    return o;
+    
+def jso2dict(o):
+    t=type(o)
+    if t is jso:  
+        o=o.__dict__;         
+        for k in o:
+            o[k]=jso2dict(o[k]);
+            
+    elif t in (list,tuple):  
+        l=len(o);
+        for k in range(l):
+            o[k]=jso2dict(o[k]);
+        
+    return o;
+
+def jsobject_decode(obj={}):
+    if type(obj) in (list, tuple):
+        return_list = []
+        for entry in obj:
+            return_list.append(jsobject_decode(entry))
+        return return_list
+    if not type(obj) ==dict:
+        return obj;
+    return_dict = {}
+    for key, value in list(obj.items()):
+        new_value = jsobject_decode(value)
+        return_dict[key] = new_value
+    return jsobject(return_dict)
+
+def _jsclass_decode(obj):
+    return jsobject_decode(_decode(obj))
+
+
+def encode_ipc(obj,f_ipc=None):
+    old=ipc_mode(f_ipc);
+    try:
+        t=_encode(obj)
+        return json.dumps(t,indent=4, separators=(',', ':'));
+    finally:
+        ipc_mode(old);
+    
+def encode(obj):    
+    t=_encode(obj)
+    return json.dumps(t,indent=4, separators=(',', ':'));
+
+def decode(s,jslike=False):
+    t=json.loads(s);
+    return _jsclass_decode(t) if jslike else _decode(t);
+
+def encode_to_file_raw(obj,fn):
+    if sys.version_info.major<3:
+        open(fn,'wb').write(encode(obj))
+    else:
+        open(fn,'wb').write(encode(obj).encode('utf8'))
+    
+def encode_to_file(obj,fn):
+    i=ipc_mode(False);
+    try:
+        encode_to_file_raw(obj,fn);
+    finally:
+        ipc_mode(i);
+    
+def decode_from_file(fn,jslike=False):
+    if sys.version_info.major<3:
+        return decode(open(fn,'rb').read(),jslike)
+    else:
+        return decode(open(fn,'rb').read().decode('utf8'),jslike)
+
+jslike=jsobject_decode
+class_decode=_decode
+class_encode=_encode
+jso=jsobject
+
+
+
+
+"""
+class marshal:
+    def __init__(self):
+        self.marshalers={}
+        self.unmarshalers={}
+    
+
+    
+    def register(self,cls,jsonclass=cls.__name__,marshaller=None,unmarshaller=None):
+        self.marshalers[cls]=(jsonclass,marshaller)
+        self.unmarshalers[jsonclass]=(jsonclass,unmarshaller)
+    
+"""

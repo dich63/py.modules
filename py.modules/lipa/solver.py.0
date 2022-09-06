@@ -1,0 +1,29 @@
+﻿import multiprocessing  as mp
+
+def worker(qin,qout=None):
+    tupl=[None,(None,),None]
+    while(True):
+        r=qin.get()
+        cmd=r[0]
+        op=r[1]
+        if cmd==1:
+            op=getattr(tupl[0],op);
+            r=op(*tupl[1],**tupl[2])
+            if qout!=None:
+                qout.put(r)
+
+        elif cmd==2:
+            args=r[2][0];
+            kw=r[2][1];
+            tupl[0]=op(*args,**kw);
+            tupl[1]=r[3][0]
+            tupl[2]=r[3][1]
+        else:
+            break
+        qin.task_done()
+
+    qin.task_done()
+
+
+
+

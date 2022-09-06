@@ -1,0 +1,4 @@
+
+
+class Dat(object):
+    pass

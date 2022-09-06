@@ -1,0 +1,146 @@
+﻿
+import numpy as np
+import ctypes
+from scipy import sparse as sp
+from scipy.sparse import csc_matrix,coo_matrix
+from scipy.sparse import  linalg as sla
+#import lipa.qpl as qpl
+from .qpl import qpJ
+from p23 import *
+
+
+
+def extend(d1,d2=None):
+    d={}
+    if d2:
+        d.update(d2);
+    if d1:
+        d.update(d1);
+    return d
+
+def tolist(l):
+    if l:
+        if (type(l)==tuple) or (type(l)==list):
+            return l;
+        else:
+            return (l,);
+    else:
+        return ();
+
+
+
+
+
+
+class lu_polus:
+    def __init__(self,Deltaz,options):
+        #options=dict(Equil=False, IterRefine='SINGLE')
+        self.lu=sla.splu(Deltaz)#,options=options)
+
+    def step(self,xin,xout):
+        xout[:]=self.lu.solve(xin);
+
+
+
+
+
+class lu_poles_node:
+    @staticmethod
+    def zero_like(C,dtype=None):
+        t= dtype if dtype else C.dtype;
+        return csc_matrix(C.shape,dtype = t);
+    @staticmethod
+    def eye_like(C,dtype=None):
+        t= dtype if dtype else C.dtype;
+        return sp.identity(C.shape[0],dtype =t);
+    @staticmethod
+    def calc_poly(C,z):
+        zn=np.complex128(1);
+        cz=self.zero_like(C[0],np.complex128);
+        for c in C:
+            cz+=c*zn;
+            zn*=z;
+        return cz;
+
+    def reset_J(self,J):
+        self.qpj=qpJ(J,self.dt);
+
+#,AC,polus,res,xz,c0,cz,freal=True,lu_solver_class=lu_polus):
+    def __init__(self,opts):
+        opts=extend(opts,{'freal':True,'dt':1,'la_solver':{'class':lu_polus,'options':{}}});
+        self.dt=opts['dt'];
+        AC=opts['AC'];
+        z=self.polus=polus=opts['polus'];
+        res=opts['res'];
+        
+        A=AC[0];
+        C=AC[1:];
+        
+        if len(C)==0:
+            Cz=self.eye_like(C,np.complex128);
+        else:
+            Cz=self.calc_poly(C,z);
+        
+        br=np.complex128(1)/res;
+        Az =br*(A+z*Cz);
+        lu_solver_class=opts['la_solver']['class']
+        lu_solver_opts=opts['la_solver'].get('options',{})
+        self.lu=lu_solver_class(Az,lu_solver_opts);
+        self.Cz = Cz;
+        self.polus=polus;
+        data=opts['data']
+        xz=data['xz'];
+        cz=data.get('cz',xz);
+        c0=data['c0'];
+        xb=self.zero_like(cz,np.complex128);
+        (self.xz,self.c0,self.cz,self.xb)=(xz,c0,cz,xb);
+
+    def step(self):
+        
+        self.lu.step(self,xb,xz);
+        if not self.xz is self.cz:
+            self.cz[:]=self.Cz*xz;
+        return True;
+
+
+class lipa_solver_real_st:
+    def __reset_AC_x0(self,x0,AC,l):
+        AC=tolist(AC);
+        N=AC[0].shape[0];
+        czs=[];xzs=[];
+        self.flc=flc=len(AC)>1;
+        if k in range(l):
+            z=np.zeros(N,dtype=np.complex128)
+            czs.append(z)
+            if flc:
+                z=np.zeros(N,dtype=np.complex128)
+            xzs.append(z)
+        c0=np.zeros(N,dtype=self.xtype);
+        if x0==None:
+            x0=np.zeros(N,dtype=self.xtype);
+        else:
+            lx0=tolist(x0)
+            M=min(len(x0s),len(Ac)-1);
+            for m in xrange(0,M):
+                c0+=AC[m+1]*lx0[m];
+        return (Ac,x0,c0,czs,xzs);
+
+    def __init__(self,n,pade,AC,dt=1,x0=None,la_solver={'class':lu_polus,'options':{}}):
+        l=pade.count;
+        self.freal=freal=pade.fhalf;
+        self.xtype= np.float64 if freal else np.complex128
+        seltf.dt=dt;
+        zs=pade.poles;
+        rs=pade.res;
+        opts=extend({'AC':AC,'freal':freal,'dt':dt,'la_solver':la_solver});
+        nodes=[];
+        for k in xrange(l):
+            opts['polus']=zs[k];
+            opts['res']=rs[k];
+            nodes.append(lu_poles_node(opts));
+        self.nodes=nodes;
+    def reset_J(self,J):
+        for nd in self.nodes:
+            nd.reset_J(J)
+        
+

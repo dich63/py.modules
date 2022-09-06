@@ -1,0 +1,1 @@
+import code;code.interact(local=globals())

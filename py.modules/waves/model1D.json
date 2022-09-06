@@ -1,0 +1,50 @@
+{
+	"default_params": {
+		"m": 0.28,
+		"gamma": 1,
+		"eta": 2e10,
+		"eta_p": 0,
+		"kappa": 1,
+		"K_s": 3.9e10,
+		"K_f": 5.7e10,
+		"K_m": 8.5e9,
+		"rho_s": 2650,
+		"rho_f": 700
+	},
+	"main_region": {
+		"name": "main",
+		"params": {
+			"m": 0
+		},
+		"polygon": {
+			"zb": 0,
+			"ze": 2000
+		}
+	},
+
+	"regions": [
+		{
+			"name": "wet_layer1",
+			
+			"params": {
+				"m": 0.28,
+				"rho_f": 1000
+			},
+			"polygon": {
+				"zb": 1200,
+				"ze": 1300
+			}
+		},
+		{
+			"name": "wet_layer2",
+			"display_name": "wet layer 2",
+			"params": {
+				"m": 0.48
+			},
+			"polygon": {
+				"zb": 200,
+				"ze": 220
+			}
+		}
+	]
+}
